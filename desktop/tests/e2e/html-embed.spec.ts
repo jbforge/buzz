@@ -201,8 +201,13 @@ test.describe("html embeds (kind:40009)", () => {
           content:
             '<p id="marker">rendered</p>' +
             '<img src="https://tracker.example/beacon.gif">' +
+            // `font-family:x` on body is required, not decoration: a browser
+            // only fetches a webfont once a rendered element applies the
+            // family, so a declared-but-unused @font-face never exercises
+            // `font-src` at all. Without CSP this artifact fires 3 requests;
+            // drop the body rule and it fires 2.
             '<style>@font-face{font-family:x;src:url("https://tracker.example/f.woff2")}' +
-            'body{background-image:url("https://tracker.example/bg.png")}</style>',
+            'body{font-family:x;background-image:url("https://tracker.example/bg.png")}</style>',
           kind,
           extraTags: [["title", "Beacon artifact"]],
         });
