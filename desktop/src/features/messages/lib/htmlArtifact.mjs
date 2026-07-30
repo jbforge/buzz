@@ -20,6 +20,13 @@
  *
  * Neither layer parses the HTML. Sanitizing untrusted markup by rewriting it
  * is a losing game; denying the capabilities is not.
+ *
+ * Known gap: layer 2 covers passive loads only. A sandboxed frame may still
+ * navigate *itself*, so a link wrapping the artifact sends a click to a remote
+ * host — and the destination document does not inherit this CSP. Closing that
+ * needs a host-document `frame-src` policy, which is an app-wide setting, not
+ * something this file can reach. See docs/nips/NIP-HE.md § "Known gap:
+ * click-driven navigation"; e2e test 05 pins the current behaviour.
  */
 
 /** Default embed height in CSS pixels when the event carries no `height` tag. */

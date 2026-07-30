@@ -156,4 +156,122 @@ test.describe("html embeds (kind:40009)", () => {
     ).toBeVisible();
     await expect(page.locator('iframe[title="Nightly build"]')).toHaveCount(0);
   });
+
+  test("04 — CSP blocks passive remote loads, so nothing leaves the machine", async ({
+    page,
+  }) => {
+    // The sibling unit test asserts the CSP *string*. This asserts its
+    // *effect* — the thing an attacker actually runs into.
+    await installMockBridge(page);
+
+    // Serve the beacon successfully. Without this the host simply fails to
+    // resolve, and the test would pass on DNS rather than on the CSP — which
+    // is exactly the false green this test exists to avoid. Test 05 proves
+    // this same routing does fire for a request the sandbox lets through.
+    let served = 0;
+    await page.route("https://tracker.example/**", (route) => {
+      served += 1;
+      return route.fulfill({
+        contentType: "image/gif",
+        body: Buffer.from(
+          "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+          "base64",
+        ),
+      });
+    });
+
+    await page.goto("/");
+    await page.getByTestId("channel-general").click();
+    await expect(page.getByTestId("chat-title")).toHaveText("general");
+    await waitForMockLiveSubscription(page, "general");
+
+    await page.evaluate(
+      ({ kind }) => {
+        (
+          window as Window & {
+            __BUZZ_E2E_EMIT_MOCK_MESSAGE__?: (input: {
+              channelName: string;
+              content: string;
+              kind: number;
+              extraTags: string[][];
+            }) => unknown;
+          }
+        ).__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+          channelName: "general",
+          content:
+            '<p id="marker">rendered</p>' +
+            '<img src="https://tracker.example/beacon.gif">' +
+            '<style>@font-face{font-family:x;src:url("https://tracker.example/f.woff2")}' +
+            'body{background-image:url("https://tracker.example/bg.png")}</style>',
+          kind,
+          extraTags: [["title", "Beacon artifact"]],
+        });
+      },
+      { kind: KIND_STREAM_MESSAGE_HTML },
+    );
+
+    // The artifact itself rendered, so a blank frame cannot be why nothing loaded.
+    const inner = page.frameLocator('iframe[title="Beacon artifact"]');
+    await expect(inner.locator("#marker")).toHaveText("rendered");
+
+    // The CSP has to have stopped all three (img, font, background-image),
+    // because anything that got through would have been served happily.
+    expect(served).toBe(0);
+  });
+
+  test("05 — a same-frame link navigates the embed (known gap, must stay contained)", async ({
+    page,
+  }) => {
+    // Documents the gap in docs/nips/NIP-HE.md § "Known gap: click-driven
+    // navigation": `sandbox=""` does NOT stop the frame navigating itself.
+    // This test exists so the blast radius cannot silently widen — if the
+    // host page ever starts navigating too, that is a serious regression.
+    await installMockBridge(page);
+    await page.route("https://attacker.example/**", (route) =>
+      route.fulfill({ contentType: "text/html", body: "<h1 id=landed>x</h1>" }),
+    );
+
+    await page.goto("/");
+    await page.getByTestId("channel-general").click();
+    await expect(page.getByTestId("chat-title")).toHaveText("general");
+    await waitForMockLiveSubscription(page, "general");
+
+    await page.evaluate(
+      ({ kind }) => {
+        (
+          window as Window & {
+            __BUZZ_E2E_EMIT_MOCK_MESSAGE__?: (input: {
+              channelName: string;
+              content: string;
+              kind: number;
+              extraTags: string[][];
+            }) => unknown;
+          }
+        ).__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+          channelName: "general",
+          content:
+            '<a id="trap" href="https://attacker.example/landing" ' +
+            'style="display:block;width:100%;height:120px">report</a>',
+          kind,
+          extraTags: [["title", "Trap artifact"]],
+        });
+      },
+      { kind: KIND_STREAM_MESSAGE_HTML },
+    );
+
+    const hostUrlBefore = page.url();
+    await page
+      .frameLocator('iframe[title="Trap artifact"]')
+      .locator("#trap")
+      .click();
+
+    // The frame does navigate — that is the known gap, asserted so a future
+    // change that closes it fails loudly here rather than going unnoticed.
+    await expect(
+      page.frameLocator('iframe[title="Trap artifact"]').locator("#landed"),
+    ).toBeVisible();
+
+    // What must never change: the user's own window stays put.
+    expect(page.url()).toBe(hostUrlBefore);
+  });
 });

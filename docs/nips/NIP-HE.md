@@ -79,7 +79,9 @@ A renderer MUST embed the artifact in an iframe with **all sandbox restrictions 
 <iframe sandbox="" srcdoc="…" referrerpolicy="no-referrer"></iframe>
 ```
 
-This is the load-bearing control. Without `allow-scripts`, `<script>` never executes and event-handler attributes never fire, so the artifact cannot reach the parent document, the host application's IPC bridge, or any other frame — irrespective of what the markup contains. Without `allow-same-origin`, the frame has an opaque origin. Without `allow-forms`, `allow-popups`, and `allow-top-navigation`, it cannot navigate anything out from under the user.
+This is the load-bearing control. Without `allow-scripts`, `<script>` never executes and event-handler attributes never fire, so the artifact cannot reach the parent document, the host application's IPC bridge, or any other frame — irrespective of what the markup contains. Without `allow-same-origin`, the frame has an opaque origin. Without `allow-forms`, `allow-popups`, and `allow-top-navigation`, it cannot navigate the user's window, open a tab, or submit a form.
+
+It can, however, still navigate **itself**: the sandbox does not restrain a same-frame link. See [Known gap: click-driven navigation](#known-gap-click-driven-navigation).
 
 A renderer MUST additionally apply a restrictive `Content-Security-Policy` to the embedded document, with `default-src 'none'` and no `script-src`. The sandbox already stops execution; the CSP stops *passive* loads. Without it, `<img src="https://tracker.example/x.png">` or a CSS `background-image` would report "this person opened this artifact, now" to a third party, with no script involved. Renderers SHOULD permit `data:` images and fonts and inline styles, so self-contained artifacts render fully:
 
@@ -106,13 +108,35 @@ The threat model is: **a channel member or agent posts a deliberately hostile do
 The controls, in the order they apply:
 
 1. **Sandbox** — stops execution. Everything else is defense in depth around this. A renderer that adds `allow-scripts` has left this NIP's guarantees behind, and `allow-scripts` together with `allow-same-origin` is equivalent to no sandbox at all.
-2. **CSP** — stops passive network loads, closing the script-free exfiltration channel (remote images, fonts, stylesheets, `background-image`).
+2. **CSP** — stops *passive* network loads (remote images, fonts, stylesheets, `background-image`). It closes the exfiltration channel that needs no user action. It does **not** close the click-driven one below.
 3. **Size limit** — bounds the fan-out cost of a single event, and with it the cheapest denial-of-service against every subscriber in a channel.
 4. **Height clamp** — bounds layout disruption.
 
 Deliberately *not* a control: sanitizing the markup. Rewriting untrusted HTML to be safe is an arms race against parser differentials; denying the capabilities is not. A renderer MUST NOT treat sanitization as a substitute for the sandbox.
 
-Not addressed by this NIP: an artifact can still display misleading content inside its own frame (a fake dialog, a spoofed message). This is the same trust question as any other user-supplied message content, and is a moderation concern rather than a rendering one.
+Not addressed by this NIP: an artifact can display misleading content inside its own frame (a fake dialog, a spoofed message). For *static* markup this is the same trust question as any other user-supplied message content, and is a moderation concern rather than a rendering one. It stops being only that once the frame navigates — see below.
+
+### Known gap: click-driven navigation
+
+`sandbox=""` blocks `_top`, `_blank`, and form submission, but a sandboxed frame is permitted by spec to navigate its **own** browsing context. An artifact can therefore wrap its entire visible surface in an ordinary link:
+
+```html
+<a href="https://attacker.example/landing" style="display:block;width:100%;height:100%">
+  …what looks like an ordinary report…
+</a>
+```
+
+One click anywhere on the embed and three things follow. Verified live in both Chromium and WebKit:
+
+1. An outbound request carrying the reader's IP. The accurate claim is that an artifact cannot phone home *unprompted*, not that it cannot phone home.
+2. **The CSP does not survive the navigation.** It lives in the `srcdoc` document; the destination document is governed by whatever policy that document carries, which is typically none. The landing page can then load remote scripts, styles, images, and nested frames freely.
+3. The row now displays content fetched **after** the event was signed. This is the part that escapes the moderation framing above: a moderator reading the signed event sees a benign document, while the reader sees whatever the attacker is serving at that moment.
+
+Scripts still never execute — the sandbox holds across the navigation, and that guarantee is unaffected. The gap is in the CSP layer, not the sandbox.
+
+`<base target="_blank">` in the wrapper document is **not** a fix: an artifact that writes `target="_self"` on its own anchor overrides it.
+
+The control that does hold is a **host-document CSP** restricting `frame-src` (for example `frame-src 'self' data:`), which constrains the frame's navigation regardless of what the artifact writes. That is an application-wide setting rather than a property of this rendering path, so this NIP states the gap rather than mandating the fix. **A renderer SHOULD NOT enable embeds by default until it applies such a policy.**
 
 ## Implementation Notes
 
