@@ -409,6 +409,30 @@ pub enum MessagesCmd {
         #[arg(long)]
         reply_to: Option<String>,
     },
+    /// Send an HTML artifact rendered inline as a sandboxed embed
+    #[command(
+        after_help = "Examples:\n  buzz messages send-html --channel <UUID> --html report.html --title \"Build report\"\n  generate-page | buzz messages send-html --channel <UUID> --html - --height 400"
+    )]
+    SendHtml {
+        /// Channel UUID
+        #[arg(long)]
+        channel: String,
+        /// HTML source — file path, or '-' to read from stdin
+        #[arg(long)]
+        html: String,
+        /// Short label shown in the embed header
+        #[arg(long)]
+        title: Option<String>,
+        /// Plaintext fallback for clients that will not render the embed
+        #[arg(long)]
+        alt: Option<String>,
+        /// Embed height in CSS pixels (80–1200)
+        #[arg(long)]
+        height: Option<u32>,
+        /// Event ID to reply to (creates a thread)
+        #[arg(long)]
+        reply_to: Option<String>,
+    },
     /// Edit a previously sent message
     Edit {
         /// Event ID of the message to edit (64-char hex)

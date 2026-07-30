@@ -26,6 +26,12 @@
       "platforms": ["desktop"]
     },
     {
+      "id": "htmlEmbeds",
+      "name": "HTML embeds",
+      "description": "Render kind:40009 HTML artifacts inline as sandboxed, script-free embeds",
+      "platforms": ["desktop"]
+    },
+    {
       "id": "agentManagedProfiles",
       "name": "Agent-managed profiles",
       "description": "Let agents manage their own relay name and avatar instead of restoring the desktop copy",

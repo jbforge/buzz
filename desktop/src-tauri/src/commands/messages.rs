@@ -5,6 +5,8 @@ mod forum;
 
 use forum::{forum_message_from_event, forum_reply_from_event};
 
+use super::channel_window::TIMELINE_KINDS;
+
 use crate::{
     app_state::AppState,
     events,
@@ -19,27 +21,6 @@ use crate::{
 };
 
 // ── Reads (pure-nostr) ──────────────────────────────────────────────────────
-
-/// Timeline content kinds — the message/channel-event kinds that make up a
-/// channel timeline and a thread's replies. Used to build relay `/query`
-/// filters for the keyset readers below. None of these are in
-/// `P_GATED_KINDS`, so a filter carrying them clears the bridge p-gate
-/// (`p_gated_filters_authorized`) without a `#p` tag — load-bearing for the
-/// thread-subtree read, whose relay routing keys off `#e`+`depth_limit` (not
-/// kind) but still passes through the p-gate before it runs.
-const TIMELINE_KINDS: [u32; 11] = [
-    9,
-    40002,
-    40008,
-    40099,
-    43001,
-    43002,
-    43003,
-    43004,
-    43005,
-    43006,
-    buzz_core_pkg::kind::KIND_HUDDLE_STARTED,
-];
 
 #[tauri::command]
 pub async fn get_feed(

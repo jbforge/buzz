@@ -1,4 +1,4 @@
-//! Typed event builder functions (38 builders).
+//! Typed event builder functions (39 builders).
 //!
 //! All functions return `Result<nostr::EventBuilder, SdkError>`.
 //! The caller signs: `builder.sign_with_keys(&keys)?`.
@@ -23,7 +23,8 @@ use nostr::{EventBuilder, Kind, Tag};
 use uuid::Uuid;
 
 use crate::{
-    ChannelKind, CustomEmoji, DiffMeta, MemberRole, SdkError, ThreadRef, Visibility, VoteDirection,
+    ChannelKind, CustomEmoji, DiffMeta, HtmlArtifactMeta, MemberRole, SdkError, ThreadRef,
+    Visibility, VoteDirection,
 };
 
 /// Parse a tag slice, mapping errors to `SdkError::InvalidTag`.
@@ -372,6 +373,54 @@ pub fn build_diff_message(
         thread_tags(tr, &mut tags)?;
     }
     Ok(EventBuilder::new(Kind::Custom(40008), content).tags(tags))
+}
+
+/// Maximum content size for an HTML artifact message (kind 40009).
+pub const MAX_HTML_ARTIFACT_BYTES: usize = 64 * 1024;
+
+/// Smallest embed height a `height` tag may request, in CSS pixels.
+pub const MIN_HTML_ARTIFACT_HEIGHT: u32 = 80;
+
+/// Largest embed height a `height` tag may request, in CSS pixels.
+pub const MAX_HTML_ARTIFACT_HEIGHT: u32 = 1200;
+
+/// Build an HTML artifact message (kind 40009).
+///
+/// `content` is the HTML source itself, kept inline so history stays
+/// self-contained. Renderers are expected to embed it in a sandboxed frame
+/// with scripts and network access disabled — see `NIP-HE.md`.
+pub fn build_html_artifact_message(
+    channel_id: Uuid,
+    content: &str,
+    meta: &HtmlArtifactMeta,
+    thread_ref: Option<&ThreadRef>,
+) -> Result<EventBuilder, SdkError> {
+    check_content(content, MAX_HTML_ARTIFACT_BYTES)?;
+    if content.trim().is_empty() {
+        return Err(SdkError::InvalidInput(
+            "html artifact content must not be empty".into(),
+        ));
+    }
+
+    let mut tags = vec![tag(&["h", &channel_id.to_string()])?];
+    if let Some(ref title) = meta.title {
+        tags.push(tag(&["title", title])?);
+    }
+    if let Some(ref alt) = meta.alt_text {
+        tags.push(tag(&["alt", alt])?);
+    }
+    if let Some(height) = meta.height {
+        if !(MIN_HTML_ARTIFACT_HEIGHT..=MAX_HTML_ARTIFACT_HEIGHT).contains(&height) {
+            return Err(SdkError::InvalidInput(format!(
+                "html artifact height must be between {MIN_HTML_ARTIFACT_HEIGHT} and {MAX_HTML_ARTIFACT_HEIGHT} (got {height})"
+            )));
+        }
+        tags.push(tag(&["height", &height.to_string()])?);
+    }
+    if let Some(tr) = thread_ref {
+        thread_tags(tr, &mut tags)?;
+    }
+    Ok(EventBuilder::new(Kind::Custom(40009), content).tags(tags))
 }
 
 /// Build an edit event targeting an existing message (kind 40003).
@@ -2065,6 +2114,106 @@ mod tests {
         let ev = sign(build_forum_comment(cid, "comment", &tr, &[], &[]).unwrap());
         assert_eq!(ev.kind.as_u16(), 45003);
         assert!(has_tag(&ev, "h", &cid.to_string()));
+    }
+
+    fn bare_html_meta() -> HtmlArtifactMeta {
+        HtmlArtifactMeta {
+            title: None,
+            alt_text: None,
+            height: None,
+        }
+    }
+
+    #[test]
+    fn html_artifact_happy_path() {
+        let cid = uuid();
+        let meta = HtmlArtifactMeta {
+            title: Some("Build report".into()),
+            alt_text: Some("Build report: 12 passed".into()),
+            height: Some(400),
+        };
+        let ev = sign(build_html_artifact_message(cid, "<h1>ok</h1>", &meta, None).unwrap());
+        assert_eq!(ev.kind.as_u16(), 40009);
+        assert!(has_tag(&ev, "h", &cid.to_string()));
+        assert!(has_tag(&ev, "title", "Build report"));
+        assert!(has_tag(&ev, "alt", "Build report: 12 passed"));
+        assert!(has_tag(&ev, "height", "400"));
+        assert_eq!(ev.content, "<h1>ok</h1>");
+    }
+
+    #[test]
+    fn html_artifact_omits_absent_optional_tags() {
+        let cid = uuid();
+        let ev =
+            sign(build_html_artifact_message(cid, "<p>x</p>", &bare_html_meta(), None).unwrap());
+        for name in ["title", "alt", "height"] {
+            assert!(
+                !ev.tags.iter().any(|t| t.as_slice()[0] == name),
+                "absent {name} must not emit an empty tag"
+            );
+        }
+    }
+
+    #[test]
+    fn html_artifact_rejects_empty_content() {
+        let cid = uuid();
+        assert!(matches!(
+            build_html_artifact_message(cid, "   \n ", &bare_html_meta(), None),
+            Err(SdkError::InvalidInput(_))
+        ));
+    }
+
+    #[test]
+    fn html_artifact_rejects_out_of_range_height() {
+        let cid = uuid();
+        for bad in [0, 79, 1201] {
+            let meta = HtmlArtifactMeta {
+                title: None,
+                alt_text: None,
+                height: Some(bad),
+            };
+            assert!(
+                matches!(
+                    build_html_artifact_message(cid, "<p>x</p>", &meta, None),
+                    Err(SdkError::InvalidInput(_))
+                ),
+                "height {bad} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn html_artifact_content_too_large() {
+        let cid = uuid();
+        let big = "x".repeat(MAX_HTML_ARTIFACT_BYTES + 1);
+        assert!(matches!(
+            build_html_artifact_message(uuid(), &big, &bare_html_meta(), None),
+            Err(SdkError::ContentTooLarge { .. })
+        ));
+        // The limit itself is inclusive — a page exactly at the cap builds.
+        let exact = "x".repeat(MAX_HTML_ARTIFACT_BYTES);
+        assert!(build_html_artifact_message(cid, &exact, &bare_html_meta(), None).is_ok());
+    }
+
+    #[test]
+    fn html_artifact_carries_no_sandbox_hint() {
+        // The embedding policy belongs to the renderer. If an author could
+        // ship a tag that widened it, every other guarantee in the feature
+        // would be advisory.
+        let cid = uuid();
+        let meta = HtmlArtifactMeta {
+            title: Some("x".into()),
+            alt_text: Some("y".into()),
+            height: Some(200),
+        };
+        let ev = sign(build_html_artifact_message(cid, "<p>x</p>", &meta, None).unwrap());
+        for tag in ev.tags.iter() {
+            let name = tag.as_slice()[0].as_str();
+            assert!(
+                !matches!(name, "sandbox" | "csp" | "allow" | "script"),
+                "unexpected policy tag: {name}"
+            );
+        }
     }
 
     fn good_diff_meta() -> DiffMeta {

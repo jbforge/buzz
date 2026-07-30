@@ -1,0 +1,159 @@
+import { expect, test, type Page } from "@playwright/test";
+
+import { installMockBridge } from "../helpers/bridge";
+import { waitForAnimations } from "../helpers/animations";
+
+const KIND_STREAM_MESSAGE_HTML = 40009;
+
+const ARTIFACT_HTML = [
+  "<style>body{font:14px system-ui;margin:12px}",
+  "table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 8px}</style>",
+  "<h2>Nightly build</h2>",
+  "<table><tr><th>Suite</th><th>Result</th></tr>",
+  "<tr><td>relay</td><td>804 passed</td></tr>",
+  "<tr><td>desktop</td><td>3785 passed</td></tr></table>",
+].join("");
+
+async function waitForMockLiveSubscription(page: Page, channelName: string) {
+  await expect
+    .poll(async () =>
+      page.evaluate(
+        ({ ch }) =>
+          (
+            window as Window & {
+              __BUZZ_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?: (input: {
+                channelName: string;
+              }) => boolean;
+            }
+          ).__BUZZ_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?.({ channelName: ch }) ??
+          false,
+        { ch: channelName },
+      ),
+    )
+    .toBe(true);
+}
+
+async function emitHtmlArtifact(page: Page) {
+  await page.evaluate(
+    ({ html, kind }) => {
+      (
+        window as Window & {
+          __BUZZ_E2E_EMIT_MOCK_MESSAGE__?: (input: {
+            channelName: string;
+            content: string;
+            kind: number;
+            extraTags: string[][];
+          }) => unknown;
+        }
+      ).__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+        channelName: "general",
+        content: html,
+        kind,
+        extraTags: [
+          ["title", "Nightly build"],
+          ["alt", "Nightly build: relay 804 passed, desktop 3785 passed"],
+          ["height", "220"],
+        ],
+      });
+    },
+    { html: ARTIFACT_HTML, kind: KIND_STREAM_MESSAGE_HTML },
+  );
+}
+
+async function openGeneralWithArtifact(page: Page) {
+  await page.goto("/");
+  await page.getByTestId("channel-general").click();
+  await expect(page.getByTestId("chat-title")).toHaveText("general");
+  await waitForMockLiveSubscription(page, "general");
+  await emitHtmlArtifact(page);
+}
+
+test.describe("html embeds (kind:40009)", () => {
+  test("01 — renders the artifact in a fully sandboxed frame", async ({
+    page,
+  }) => {
+    // installMockBridge seeds every preview feature as enabled by default,
+    // which is the state this test wants.
+    await installMockBridge(page);
+    await openGeneralWithArtifact(page);
+
+    const frame = page.locator('iframe[title="Nightly build"]');
+    await expect(frame).toBeVisible();
+
+    // The sandbox attribute is the control that makes untrusted HTML safe to
+    // render. An empty value means every restriction applies; any token here
+    // (above all `allow-scripts`) is a security regression, not a tweak.
+    await expect(frame).toHaveAttribute("sandbox", "");
+    await expect(frame).toHaveAttribute("referrerpolicy", "no-referrer");
+    await expect(frame).toHaveAttribute("height", "220");
+
+    // The artifact really rendered — not just an empty frame.
+    const inner = page.frameLocator('iframe[title="Nightly build"]');
+    await expect(inner.getByRole("heading", { level: 2 })).toHaveText(
+      "Nightly build",
+    );
+    await expect(inner.getByRole("cell", { name: "804 passed" })).toBeVisible();
+
+    await waitForAnimations(page);
+    await page
+      .locator('iframe[title="Nightly build"]')
+      .locator("xpath=ancestor::div[contains(@class,'rounded-2xl')][1]")
+      .screenshot({ path: "test-results/screenshots/html-embed-enabled.png" });
+  });
+
+  test("02 — scripts in the artifact never execute", async ({ page }) => {
+    await installMockBridge(page);
+
+    await page.goto("/");
+    await page.getByTestId("channel-general").click();
+    await expect(page.getByTestId("chat-title")).toHaveText("general");
+    await waitForMockLiveSubscription(page, "general");
+
+    await page.evaluate(
+      ({ kind }) => {
+        (
+          window as Window & {
+            __BUZZ_E2E_EMIT_MOCK_MESSAGE__?: (input: {
+              channelName: string;
+              content: string;
+              kind: number;
+              extraTags: string[][];
+            }) => unknown;
+          }
+        ).__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+          channelName: "general",
+          content:
+            "<p id='out'>inert</p>" +
+            "<script>document.getElementById('out').textContent='EXECUTED';" +
+            "try{window.top.__PWNED__=true}catch(e){}</script>",
+          kind,
+          extraTags: [["title", "Hostile artifact"]],
+        });
+      },
+      { kind: KIND_STREAM_MESSAGE_HTML },
+    );
+
+    const inner = page.frameLocator('iframe[title="Hostile artifact"]');
+    await expect(inner.locator("#out")).toHaveText("inert");
+
+    // And nothing reached the host document.
+    const pwned = await page.evaluate(
+      () => (window as Window & { __PWNED__?: boolean }).__PWNED__ === true,
+    );
+    expect(pwned).toBe(false);
+  });
+
+  test("03 — falls back to alt text when the preview flag is off", async ({
+    page,
+  }) => {
+    // No override seeded at all, so `htmlEmbeds` resolves to its manifest
+    // default (off) — the state a user sees before opening Experiments.
+    await installMockBridge(page, undefined, { seedPreviewFeatures: false });
+    await openGeneralWithArtifact(page);
+
+    await expect(
+      page.getByText("Nightly build: relay 804 passed, desktop 3785 passed"),
+    ).toBeVisible();
+    await expect(page.locator('iframe[title="Nightly build"]')).toHaveCount(0);
+  });
+});

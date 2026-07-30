@@ -26,6 +26,7 @@ import {
 import {
   KIND_HUDDLE_STARTED,
   KIND_STREAM_MESSAGE_DIFF,
+  KIND_STREAM_MESSAGE_HTML,
 } from "@/shared/constants/kinds";
 import { getConfigNudgeAuthorPubkey } from "@/features/messages/ui/configNudgeAuthPubkey";
 import { cn } from "@/shared/lib/cn";
@@ -48,6 +49,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 
 const DiffMessage = React.lazy(() => import("./DiffMessage"));
 const DiffMessageExpanded = React.lazy(() => import("./DiffMessageExpanded"));
+const HtmlMessage = React.lazy(() => import("./HtmlMessage"));
 
 export type ThreadDepthGuideAction = {
   active?: boolean;
@@ -323,6 +325,23 @@ export const MessageRow = React.memo(
                 }}
                 repoUrl={getTag("repo")}
                 truncated={getTag("truncated") === "true"}
+              />
+            </React.Suspense>
+          );
+        case KIND_STREAM_MESSAGE_HTML:
+          return (
+            <React.Suspense
+              fallback={
+                <div className="p-3 text-sm text-muted-foreground">
+                  Loading embed…
+                </div>
+              }
+            >
+              <HtmlMessage
+                alt={getTag("alt")}
+                content={message.body}
+                height={getTag("height")}
+                title={getTag("title")}
               />
             </React.Suspense>
           );

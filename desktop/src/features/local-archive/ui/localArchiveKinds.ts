@@ -7,6 +7,7 @@ import {
   KIND_HUDDLE_PARTICIPANT_LEFT,
   KIND_HUDDLE_STARTED,
   KIND_STREAM_MESSAGE_DIFF,
+  KIND_STREAM_MESSAGE_HTML,
   KIND_SYSTEM_MESSAGE,
 } from "@/shared/constants/kinds";
 
@@ -32,6 +33,10 @@ export const KIND_GROUPS: ReadonlyArray<KindGroup> = [
         label: kindLabel(k),
       })),
       { kind: KIND_STREAM_MESSAGE_DIFF, label: "Message diffs (kind 40008)" },
+      {
+        kind: KIND_STREAM_MESSAGE_HTML,
+        label: "HTML embeds (kind 40009)",
+      },
     ],
   },
   {

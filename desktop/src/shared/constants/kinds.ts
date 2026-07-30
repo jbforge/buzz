@@ -20,6 +20,7 @@ export const KIND_STREAM_MESSAGE_EDIT = 40003;
 export const KIND_CHANNEL_THREAD_SUMMARY = 39005;
 export const KIND_CHANNEL_WINDOW_BOUNDS = 39006;
 export const KIND_STREAM_MESSAGE_DIFF = 40008;
+export const KIND_STREAM_MESSAGE_HTML = 40009;
 export const KIND_REMINDER = 40007;
 export const KIND_SYSTEM_MESSAGE = 40099;
 export const KIND_JOB_REQUEST = 43001;
@@ -93,6 +94,7 @@ export const CHANNEL_EVENT_KINDS = [
   40001, // legacy: pre-migration stream messages
   KIND_STREAM_MESSAGE_EDIT, // 40003 — message edits
   KIND_STREAM_MESSAGE_DIFF, // 40008 — message diffs
+  KIND_STREAM_MESSAGE_HTML, // 40009 — HTML artifact embeds
   KIND_SYSTEM_MESSAGE, // 40099 — system messages (join, leave, etc.)
   KIND_HUDDLE_STARTED, // 48100 — visible huddle session card
   KIND_HUDDLE_PARTICIPANT_JOINED, // 48101 — huddle lifecycle overlay
@@ -107,8 +109,8 @@ export const CHANNEL_EVENT_KINDS = [
 // (on a reaction-heavy channel a 200-event window was only ~136 messages).
 // They are backfilled separately by `#e` reference over the loaded message ids
 // — by reference, not by time window, so a late edit/delete for a visible old
-// message still applies. NOTE: kind:40008 (diff) renders its OWN row, so it is
-// a content kind, not aux.
+// message still applies. NOTE: kind:40008 (diff) and kind:40009 (HTML embed)
+// render their OWN rows, so they are content kinds, not aux.
 export const CHANNEL_AUX_EVENT_KINDS = [
   KIND_DELETION, // 5 — NIP-09 event deletions
   KIND_REACTION, // 7 — NIP-25 reactions
@@ -126,6 +128,7 @@ export const CHANNEL_TIMELINE_CONTENT_KINDS = [
   KIND_STREAM_MESSAGE, // 9
   KIND_STREAM_MESSAGE_V2, // 40002
   KIND_STREAM_MESSAGE_DIFF, // 40008 — diff messages (own row)
+  KIND_STREAM_MESSAGE_HTML, // 40009 — HTML artifact embeds (own row)
   KIND_SYSTEM_MESSAGE, // 40099 — system rows (join/leave/channel-created)
   KIND_JOB_REQUEST, // 43001
   KIND_JOB_ACCEPTED, // 43002
