@@ -138,6 +138,10 @@ Scripts still never execute — the sandbox holds across the navigation, and tha
 
 The control that does hold is a **host-document CSP** restricting `frame-src` (for example `frame-src 'self' data:`), which constrains the frame's navigation regardless of what the artifact writes. That is an application-wide setting rather than a property of this rendering path, so this NIP states the gap rather than mandating the fix. **A renderer SHOULD NOT enable embeds by default until it applies such a policy.**
 
+**Status in Buzz: closed.** The desktop app sets `frame-src 'none'` application-wide (`desktop/src-tauri/tauri.conf.json`, `app.security.csp`), so the click above navigates nowhere. This was verified by hand in both directions — the same artifact navigates in a build without the policy and does nothing in a build with it — and is pinned by two guards, described under Implementation Notes.
+
+The gap is documented here rather than deleted because it is a property of `sandbox=""` under the spec, not of Buzz. Any other renderer of this kind inherits it and has to close it the same way.
+
 ## Implementation Notes
 
 In Buzz:
@@ -148,5 +152,11 @@ In Buzz:
 - CLI: `buzz messages send-html --channel <uuid> --html <path|->`
 - desktop renderer: `desktop/src/features/messages/ui/HtmlMessage.tsx`, with the CSP wrapper and height clamp in `desktop/src/features/messages/lib/htmlArtifact.mjs`
 - desktop gating: the `htmlEmbeds` preview feature in `preview-features.json`
+- host-document CSP closing the click-navigation gap: `desktop/src-tauri/tauri.conf.json` (`app.security.csp` = `frame-src 'none'`), with `dangerousDisableAssetCspModification` for `script-src` and `style-src`
+
+Both halves of that CSP setting are required and each is guarded, because removing either breaks something no other test catches:
+
+- `desktop/scripts/check-csp.mjs` (run by `pnpm check`) fails if the `frame-src` directive or either disable-list entry goes missing. The disable list is not optional: Tauri would otherwise inject a nonce into the `<style>` block at `desktop/index.html`, which nullifies `'unsafe-inline'` and kills Radix's runtime-injected stylesheets app-wide. It is *runtime-injected `<style>` elements* that need this, not JSX inline style props — those go through CSSOM, which CSP does not govern.
+- `desktop/src-tauri/tests/csp_header.rs` (run by `just desktop-tauri-test-csp`) asserts the header actually shipped in the bundle, which config linting cannot see: the config can stay correct while a Tauri upgrade changes what gets merged on top of it. It needs `--features custom-protocol`, since Tauri's dev asset resolver returns `None` for the header regardless of the config.
 
 The mobile client defines the kind constant but deliberately omits it from its timeline filters, per §Client Behavior — it has no embed renderer yet.
