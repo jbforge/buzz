@@ -3,6 +3,9 @@ import type {
   ProviderUsageSnapshot,
 } from "@/shared/api/tauriProviderUsage";
 
+import { isProviderEnabled } from "./providerPrefs";
+import type { ProviderPrefs } from "./providerPrefs";
+
 /**
  * Pure projection of a provider-usage snapshot into the sidebar card's row
  * model. Single source of truth for copy, ordering, and severity thresholds,
@@ -149,15 +152,18 @@ function providerToRow(
 /**
  * @param snapshot  latest snapshot, or null if not yet fetched
  * @param nowSeconds  current unix time, injected for testability
+ * @param prefs  per-provider visibility toggles from Settings; absent = shown
  */
 export function deriveUsageCard(
   snapshot: ProviderUsageSnapshot | null,
   nowSeconds: number,
+  prefs: ProviderPrefs = {},
 ): UsageCardModel {
   if (!snapshot) {
     return { show: false, rows: [] };
   }
   const rows = snapshot.providers
+    .filter((provider) => isProviderEnabled(prefs, provider.id))
     .map((provider) => providerToRow(provider, nowSeconds))
     .filter((row): row is UsageRow => row !== null);
   return { show: rows.length > 0, rows };

@@ -123,6 +123,25 @@ test("not-configured providers are hidden entirely", () => {
   assert.equal(card.rows.length, 0);
 });
 
+test("prefs hide disabled providers; absent ids stay visible", () => {
+  const providers = [
+    provider({
+      windows: [{ label: "Weekly", usedPercent: 10, resetsAt: null }],
+    }),
+    provider({ id: "codex", name: "Codex", status: "unsupported" }),
+  ];
+  const card = deriveUsageCard(snapshot(providers), NOW, { codex: false });
+  assert.deepEqual(
+    card.rows.map((row) => row.id),
+    ["claude"],
+  );
+  const allOff = deriveUsageCard(snapshot(providers), NOW, {
+    claude: false,
+    codex: false,
+  });
+  assert.equal(allOff.show, false);
+});
+
 test("tone thresholds", () => {
   assert.equal(toneForPercent(0), "normal");
   assert.equal(toneForPercent(69), "normal");

@@ -5,6 +5,10 @@ import * as React from "react";
 import { deriveUsageCard } from "@/features/provider-usage/usageCard";
 import type { UsageMeter, UsageRow } from "@/features/provider-usage/usageCard";
 import { useProviderUsage } from "@/features/provider-usage/hooks/useProviderUsage";
+import {
+  allProvidersDisabled,
+  useProviderPrefs,
+} from "@/features/provider-usage/providerPrefs";
 import { useFeatureEnabled } from "@/shared/features/useFeatureEnabled";
 import { cn } from "@/shared/lib/cn";
 
@@ -24,10 +28,13 @@ const TONE_BAR_CLASS: Record<UsageRow["tone"], string> = {
  */
 export function SidebarUsageCard({ className }: { className?: string }) {
   const enabled = useFeatureEnabled("providerUsage");
-  const { snapshot, refresh } = useProviderUsage(enabled);
+  const prefs = useProviderPrefs();
+  const { snapshot, refresh } = useProviderUsage(
+    enabled && !allProvidersDisabled(prefs),
+  );
   const card = React.useMemo(
-    () => deriveUsageCard(snapshot, Math.floor(Date.now() / 1000)),
-    [snapshot],
+    () => deriveUsageCard(snapshot, Math.floor(Date.now() / 1000), prefs),
+    [snapshot, prefs],
   );
 
   if (!enabled || !card.show) {

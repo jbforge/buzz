@@ -70,6 +70,7 @@ import {
 } from "@/shared/theme/useThemePreviewVars";
 import { ChannelTemplatesSettingsCard } from "./ChannelTemplatesSettingsCard";
 import { HarnessesSettingsPanel } from "./HarnessesSettingsPanel";
+import { ProviderUsageSettingsCard } from "@/features/provider-usage/ui/ProviderUsageSettingsCard";
 import { ExperimentalFeaturesCard } from "./ExperimentalFeaturesCard";
 import { KeyboardShortcutsCard } from "./KeyboardShortcutsCard";
 import { MeshComputeSettingsCard } from "@/features/mesh-compute/ui/MeshComputeSettingsCard";
@@ -808,7 +809,12 @@ export function renderSettingsSection(
         />
       );
     case "experimental":
-      return <ExperimentalFeaturesCard />;
+      return (
+        <div className="space-y-12">
+          <ExperimentalFeaturesCard />
+          <ProviderUsageSettingsCard />
+        </div>
+      );
     case "agents":
       return (
         <div className="space-y-12">

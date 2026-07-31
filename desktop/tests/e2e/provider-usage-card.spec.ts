@@ -42,6 +42,33 @@ test.describe("sidebar AI usage card", () => {
     });
   });
 
+  test("settings toggle hides a provider's row live", async ({ page }) => {
+    await installMockBridge(page);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("sidebar-usage-row-codex")).toBeVisible({
+      timeout: 10_000,
+    });
+
+    await page.getByTestId("open-settings").click();
+    await page.getByTestId("profile-popover-settings").click();
+    await expect(page.getByTestId("settings-view")).toBeVisible();
+    await page.getByTestId("settings-nav-experimental").click();
+    const toggle = page.getByTestId("provider-usage-toggle-codex");
+    await expect(toggle).toBeVisible();
+    await waitForAnimations(page);
+    await page
+      .getByTestId("settings-provider-usage")
+      .screenshot({ path: `${SHOTS}/03-provider-toggles.png` });
+    await toggle.click();
+    await page.getByTestId("settings-back-to-app").click();
+
+    await expect(page.getByTestId("sidebar-usage-card")).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(page.getByTestId("sidebar-usage-row-claude")).toBeVisible();
+    await expect(page.getByTestId("sidebar-usage-row-codex")).toHaveCount(0);
+  });
+
   test("stays hidden while the preview feature is off", async ({ page }) => {
     await installMockBridge(page, undefined, { seedPreviewFeatures: false });
     await page.goto("/", { waitUntil: "domcontentloaded" });
