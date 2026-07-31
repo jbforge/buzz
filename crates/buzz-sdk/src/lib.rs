@@ -56,6 +56,19 @@ pub struct DiffMeta {
     pub alt_text: Option<String>,
 }
 
+/// Metadata for HTML artifact messages (kind 40010).
+///
+/// The event carries no sandboxing hints on purpose: the embedding policy is
+/// the renderer's to decide, so an author cannot widen it from the wire.
+pub struct HtmlArtifactMeta {
+    /// Optional short label shown in the embed header.
+    pub title: Option<String>,
+    /// Optional plaintext fallback for clients that will not render the embed.
+    pub alt_text: Option<String>,
+    /// Optional embed height in CSS pixels — clamped to 80..=1200.
+    pub height: Option<u32>,
+}
+
 /// Vote direction for `build_vote`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VoteDirection {

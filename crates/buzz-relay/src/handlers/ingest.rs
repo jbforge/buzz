@@ -30,10 +30,11 @@ use buzz_core::kind::{
     KIND_NIP65_RELAY_LIST_METADATA, KIND_PERSONA, KIND_PIN_LIST, KIND_PRESENCE_UPDATE,
     KIND_PRODUCT_FEEDBACK, KIND_PROFILE, KIND_REACTION, KIND_READ_STATE, KIND_REPORT,
     KIND_STREAM_MESSAGE, KIND_STREAM_MESSAGE_BOOKMARKED, KIND_STREAM_MESSAGE_DIFF,
-    KIND_STREAM_MESSAGE_EDIT, KIND_STREAM_MESSAGE_PINNED, KIND_STREAM_MESSAGE_SCHEDULED,
-    KIND_STREAM_MESSAGE_V2, KIND_STREAM_REMINDER, KIND_TEAM, KIND_TEAM_CATALOG, KIND_TEXT_NOTE,
-    KIND_USER_STATUS, KIND_WORKFLOW_DEF, KIND_WORKFLOW_TRIGGER, RELAY_ADMIN_ADD_MEMBER,
-    RELAY_ADMIN_CHANGE_ROLE, RELAY_ADMIN_REMOVE_MEMBER, RELAY_ADMIN_SET_WORKSPACE_PROFILE,
+    KIND_STREAM_MESSAGE_EDIT, KIND_STREAM_MESSAGE_HTML, KIND_STREAM_MESSAGE_PINNED,
+    KIND_STREAM_MESSAGE_SCHEDULED, KIND_STREAM_MESSAGE_V2, KIND_STREAM_REMINDER, KIND_TEAM,
+    KIND_TEAM_CATALOG, KIND_TEXT_NOTE, KIND_USER_STATUS, KIND_WORKFLOW_DEF, KIND_WORKFLOW_TRIGGER,
+    RELAY_ADMIN_ADD_MEMBER, RELAY_ADMIN_CHANGE_ROLE, RELAY_ADMIN_REMOVE_MEMBER,
+    RELAY_ADMIN_SET_WORKSPACE_PROFILE,
 };
 use buzz_core::tenant::TenantContext;
 use buzz_core::verification::verify_event;
@@ -253,6 +254,7 @@ fn required_scope_for_kind(kind: u32, event: &Event) -> Result<Scope, &'static s
         | KIND_STREAM_MESSAGE_SCHEDULED
         | KIND_STREAM_REMINDER
         | KIND_STREAM_MESSAGE_DIFF
+        | KIND_STREAM_MESSAGE_HTML
         | KIND_FORUM_POST
         | KIND_FORUM_VOTE
         | KIND_FORUM_COMMENT => Ok(Scope::MessagesWrite),
@@ -478,6 +480,7 @@ pub(crate) fn requires_h_channel_scope(kind: u32) -> bool {
             | KIND_STREAM_MESSAGE_SCHEDULED
             | KIND_STREAM_REMINDER
             | KIND_STREAM_MESSAGE_DIFF
+            | KIND_STREAM_MESSAGE_HTML
             | KIND_CANVAS
             | KIND_FORUM_POST
             | KIND_FORUM_VOTE
@@ -962,6 +965,43 @@ fn validate_diff_event(event: &Event) -> Result<(), String> {
     if !has_commit {
         return Err("diff event requires a commit tag".to_string());
     }
+    Ok(())
+}
+
+/// Validate kind:40010 HTML artifact event envelope.
+///
+/// The relay checks size and tag shape only. It deliberately does not parse or
+/// sanitize the HTML: rendering safety is the client's, enforced by the
+/// sandboxed frame it embeds the artifact in (see `docs/nips/NIP-HE.md`), and a
+/// relay-side parser would be both non-authoritative and a DoS surface.
+fn validate_html_artifact_event(event: &Event) -> Result<(), String> {
+    // Content max 64KB — smaller than the global cap so a page stays cheap to
+    // fan out to every subscriber in the channel.
+    if event.content.len() > 65_536 {
+        return Err(format!(
+            "html artifact content exceeds 64KB limit (got {} bytes)",
+            event.content.len()
+        ));
+    }
+    if event.content.trim().is_empty() {
+        return Err("html artifact content must not be empty".to_string());
+    }
+
+    for tag in event.tags.iter() {
+        let parts = tag.as_slice();
+        if parts.len() < 2 {
+            continue;
+        }
+        if parts[0].as_str() == "height" {
+            let height = parts[1]
+                .parse::<u32>()
+                .map_err(|_| "height must be an integer".to_string())?;
+            if !(80..=1200).contains(&height) {
+                return Err("height must be between 80 and 1200".to_string());
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -2073,6 +2113,11 @@ async fn ingest_event_inner(
         validate_diff_event(&event).map_err(|e| IngestError::Rejected(format!("invalid: {e}")))?;
     }
 
+    if kind_u32 == KIND_STREAM_MESSAGE_HTML {
+        validate_html_artifact_event(&event)
+            .map_err(|e| IngestError::Rejected(format!("invalid: {e}")))?;
+    }
+
     if kind_u32 == KIND_AGENT_ENGRAM {
         validate_engram_envelope(&event)
             .map_err(|e| IngestError::Rejected(format!("invalid: {e}")))?;
@@ -2622,7 +2667,7 @@ mod tests {
     use buzz_core::kind::{
         KIND_CANVAS, KIND_FORUM_COMMENT, KIND_FORUM_POST, KIND_FORUM_VOTE, KIND_LONG_FORM,
         KIND_MANAGED_AGENT, KIND_PERSONA, KIND_PRESENCE_UPDATE, KIND_STREAM_MESSAGE,
-        KIND_STREAM_MESSAGE_DIFF, KIND_TEAM, KIND_USER_STATUS,
+        KIND_STREAM_MESSAGE_DIFF, KIND_STREAM_MESSAGE_HTML, KIND_TEAM, KIND_USER_STATUS,
     };
     use nostr::{EventBuilder, Kind};
 
@@ -3206,6 +3251,89 @@ mod tests {
             ],
         );
         assert!(validate_diff_event(&event).is_err());
+    }
+
+    #[test]
+    fn html_artifact_validation_accepts_bare_document() {
+        // No tags beyond the channel scope: title/alt/height are all optional,
+        // so a page with nothing but content must pass.
+        let event =
+            make_event_with_tags(KIND_STREAM_MESSAGE_HTML, "<h1>report</h1>", &[&["h", "x"]]);
+        assert!(validate_html_artifact_event(&event).is_ok());
+    }
+
+    #[test]
+    fn html_artifact_validation_rejects_empty_content() {
+        let event = make_event_with_tags(KIND_STREAM_MESSAGE_HTML, "   \n\t ", &[&["h", "x"]]);
+        assert!(validate_html_artifact_event(&event).is_err());
+    }
+
+    #[test]
+    fn html_artifact_validation_rejects_oversized_content() {
+        let big = "x".repeat(65_537);
+        let event = make_event_with_tags(KIND_STREAM_MESSAGE_HTML, &big, &[&["h", "x"]]);
+        assert!(validate_html_artifact_event(&event).is_err());
+    }
+
+    #[test]
+    fn html_artifact_validation_accepts_content_at_the_limit() {
+        let exact = "x".repeat(65_536);
+        let event = make_event_with_tags(KIND_STREAM_MESSAGE_HTML, &exact, &[&["h", "x"]]);
+        assert!(validate_html_artifact_event(&event).is_ok());
+    }
+
+    #[test]
+    fn html_artifact_validation_rejects_out_of_range_height() {
+        for bad in ["0", "79", "1201", "99999"] {
+            let event = make_event_with_tags(
+                KIND_STREAM_MESSAGE_HTML,
+                "<p>x</p>",
+                &[&["h", "x"], &["height", bad]],
+            );
+            assert!(
+                validate_html_artifact_event(&event).is_err(),
+                "height {bad} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn html_artifact_validation_rejects_non_numeric_height() {
+        let event = make_event_with_tags(
+            KIND_STREAM_MESSAGE_HTML,
+            "<p>x</p>",
+            &[&["h", "x"], &["height", "tall"]],
+        );
+        assert!(validate_html_artifact_event(&event).is_err());
+    }
+
+    #[test]
+    fn html_artifact_validation_accepts_in_range_height() {
+        for ok in ["80", "320", "1200"] {
+            let event = make_event_with_tags(
+                KIND_STREAM_MESSAGE_HTML,
+                "<p>x</p>",
+                &[&["h", "x"], &["height", ok]],
+            );
+            assert!(
+                validate_html_artifact_event(&event).is_ok(),
+                "height {ok} should be accepted"
+            );
+        }
+    }
+
+    #[test]
+    fn html_artifact_validation_does_not_inspect_markup() {
+        // The relay is deliberately not an HTML sanitizer — scripts are
+        // neutralized by the renderer's sandbox, not by rejection here. If
+        // this test ever starts failing, someone added content filtering to
+        // the relay; that is a design change, not a bug fix.
+        let event = make_event_with_tags(
+            KIND_STREAM_MESSAGE_HTML,
+            "<script>fetch('https://evil.example')</script>",
+            &[&["h", "x"]],
+        );
+        assert!(validate_html_artifact_event(&event).is_ok());
     }
 
     fn make_dummy_event() -> Event {

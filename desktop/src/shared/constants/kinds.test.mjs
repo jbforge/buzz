@@ -6,6 +6,7 @@ import {
   KIND_STREAM_MESSAGE,
   KIND_STREAM_MESSAGE_V2,
   KIND_STREAM_MESSAGE_DIFF,
+  KIND_STREAM_MESSAGE_HTML,
   KIND_SYSTEM_MESSAGE,
   KIND_JOB_REQUEST,
   KIND_JOB_ACCEPTED,
@@ -31,6 +32,12 @@ test("isConversationalUnreadKind_streamMessageV2_counts", () => {
 test("isConversationalUnreadKind_streamMessageDiff_counts", () => {
   // 40008 is a real message diff — must stay counted.
   assert.equal(isConversationalUnreadKind(KIND_STREAM_MESSAGE_DIFF), true);
+});
+
+test("isConversationalUnreadKind_streamMessageHtml_counts", () => {
+  // 40010 is a person or agent posting an artifact — as conversational as a
+  // diff, so it must count toward the unread pill.
+  assert.equal(isConversationalUnreadKind(KIND_STREAM_MESSAGE_HTML), true);
 });
 
 test("isConversationalUnreadKind_systemMessage_excluded", () => {

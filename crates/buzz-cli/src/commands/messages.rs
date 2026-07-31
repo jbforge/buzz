@@ -1,11 +1,14 @@
-use buzz_sdk::{DeleteMessageOptions, DiffMeta, ThreadRef, VoteDirection};
+use buzz_sdk::{
+    DeleteMessageOptions, DiffMeta, HtmlArtifactMeta, ThreadRef, VoteDirection,
+    MAX_HTML_ARTIFACT_BYTES,
+};
 use nostr::PublicKey;
 use uuid::Uuid;
 
 use crate::client::{normalize_events, normalize_write_response, BuzzClient};
 use crate::error::CliError;
 use crate::validate::{
-    infer_language, parse_event_id, parse_uuid, read_or_stdin, truncate_diff,
+    infer_language, parse_event_id, parse_uuid, read_file_or_stdin, read_or_stdin, truncate_diff,
     validate_content_size, validate_hex64, validate_uuid, MAX_DIFF_BYTES,
 };
 use buzz_sdk::mentions::{
@@ -363,7 +366,7 @@ pub async fn cmd_get_messages(
     let limit = limit.unwrap_or(50).min(200);
 
     let mut filter = serde_json::json!({
-        "kinds": [9, 40002, 40008, 45001, 45003],
+        "kinds": [9, 40002, 40008, 40010, 45001, 45003],
         "#h": [channel_id],
         "limit": limit
     });
@@ -407,7 +410,7 @@ pub async fn cmd_get_thread(
     // 1. Replies referencing this event via e-tag (no kind restriction)
     // 2. The root event itself by ID
     let mut reply_filter = serde_json::json!({
-        "kinds": [9, 40002, 40003, 40008, 45003],
+        "kinds": [9, 40002, 40003, 40008, 40010, 45003],
         "#h": [channel_id],
         "#e": [event_id],
         "limit": limit
@@ -780,6 +783,65 @@ pub async fn cmd_send_diff_message(client: &BuzzClient, p: SendDiffParams) -> Re
     Ok(())
 }
 
+pub struct SendHtmlParams {
+    pub channel_id: String,
+    pub html: String,
+    pub title: Option<String>,
+    pub alt: Option<String>,
+    pub height: Option<u32>,
+    pub reply_to: Option<String>,
+}
+
+pub async fn cmd_send_html_message(client: &BuzzClient, p: SendHtmlParams) -> Result<(), CliError> {
+    if let Some(r) = &p.reply_to {
+        validate_hex64(r)?;
+    }
+
+    let channel_uuid = parse_uuid(&p.channel_id)?;
+
+    // `--html` always names a file (or stdin) — an HTML document on argv would
+    // be mangled by the shell long before it reached us.
+    let html = read_file_or_stdin(&p.html)?;
+    if html.len() > MAX_HTML_ARTIFACT_BYTES {
+        return Err(CliError::Usage(format!(
+            "html exceeds the {MAX_HTML_ARTIFACT_BYTES}-byte limit for kind:40010 (got {} bytes)",
+            html.len()
+        )));
+    }
+
+    // NIP-31 alt tag — explicit flag wins, else fall back to the title.
+    let alt = p.alt.clone().or_else(|| {
+        p.title
+            .as_ref()
+            .map(|t| format!("HTML embed: {t}"))
+            .or_else(|| Some("HTML embed".to_string()))
+    });
+
+    // `--reply-to` is the immediate parent; the thread root is derived from
+    // the parent's NIP-10 tags via the relay.
+    let thread_ref = if let Some(r) = &p.reply_to {
+        Some(resolve_thread_ref(client, r).await?)
+    } else {
+        None
+    };
+
+    let meta = HtmlArtifactMeta {
+        title: p.title.clone(),
+        alt_text: alt,
+        height: p.height,
+    };
+
+    let builder =
+        buzz_sdk::build_html_artifact_message(channel_uuid, &html, &meta, thread_ref.as_ref())
+            .map_err(|e| CliError::Other(format!("build_html_artifact_message failed: {e}")))?;
+
+    let event = client.sign_event(builder)?;
+
+    let resp = client.submit_event(event).await?;
+    println!("{}", normalize_write_response(&resp));
+    Ok(())
+}
+
 pub async fn cmd_delete_message(
     client: &BuzzClient,
     event_id: &str,
@@ -923,6 +985,27 @@ pub async fn dispatch(
                     pr_number: pr,
                     language: lang,
                     description,
+                    reply_to,
+                },
+            )
+            .await
+        }
+        MessagesCmd::SendHtml {
+            channel,
+            html,
+            title,
+            alt,
+            height,
+            reply_to,
+        } => {
+            cmd_send_html_message(
+                client,
+                SendHtmlParams {
+                    channel_id: channel,
+                    html,
+                    title,
+                    alt,
+                    height,
                     reply_to,
                 },
             )

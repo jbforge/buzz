@@ -26,6 +26,13 @@ abstract final class EventKind {
   static const channelWindowBounds = 39006;
   static const streamMessageEdit = 40003;
   static const streamMessageDiff = 40008;
+
+  /// HTML artifact embeds. Defined to keep the kind registry in sync with
+  /// desktop, but deliberately absent from the timeline kind lists below:
+  /// mobile renders unknown message kinds as plain content, and dumping a
+  /// raw HTML document into the timeline is worse than not fetching it.
+  /// Remove this note when mobile grows a real embed renderer.
+  static const streamMessageHtml = 40010;
   static const systemMessage = 40099;
   static const jobRequest = 43001;
   static const jobAccepted = 43002;
