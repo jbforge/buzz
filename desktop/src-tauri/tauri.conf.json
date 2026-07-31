@@ -36,7 +36,8 @@
     ],
     "macOSPrivateApi": true,
     "security": {
-      "csp": null
+      "csp": "frame-src 'none'",
+      "dangerousDisableAssetCspModification": ["script-src", "style-src"]
     }
   },
   "plugins": {
