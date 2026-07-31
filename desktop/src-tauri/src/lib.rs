@@ -18,6 +18,21 @@ mod mesh_llm;
 #[cfg(not(feature = "mesh-llm"))]
 mod mesh_llm_stubs;
 mod migration;
+
+/// The crate's single `generate_context!` invocation.
+///
+/// Public so `tests/csp_header.rs` can build a mock app from the real
+/// embedded assets and read the shipped `Content-Security-Policy` off them.
+///
+/// On macOS the macro embeds `Info.plist` through a `#[used]` static, so a
+/// second invocation anywhere in the crate fails to link with
+/// `symbol _EMBED_INFO_PLIST is already defined`. `csp_tests` needs the real
+/// context to read the shipped CSP header off the embedded assets, so the
+/// call lives here and both callers share it.
+pub fn tauri_context<R: tauri::Runtime>() -> tauri::Context<R> {
+    tauri::generate_context!()
+}
+
 #[cfg(test)]
 mod model_tests;
 mod models;
@@ -923,7 +938,7 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             tray_menu::update_tray_agent_activity,
         ])
-        .build(tauri::generate_context!())
+        .build(tauri_context())
         .expect("error while building tauri application");
 
     let shutdown_done = Arc::new(AtomicBool::new(false));

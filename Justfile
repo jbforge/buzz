@@ -202,6 +202,29 @@ desktop-tauri-check: _ensure-sidecar-stubs
 desktop-tauri-test: _ensure-sidecar-stubs
     cd desktop/src-tauri && cargo test
 
+# Verify the CSP header the app actually ships (see desktop/src-tauri/tests/csp_header.rs).
+#
+# Needs `custom-protocol`, because Tauri derives `cfg(dev)` as `!custom-protocol`
+# and the asset resolver returns `csp_header: None` unconditionally in dev — so
+# without the feature this measures nothing. It gets its own recipe rather than a
+# flag on `desktop-tauri-test`: the feature turns `cfg(dev)` off crate-wide and
+# several `#[cfg(test)]` modules are `cfg(dev)`-gated, so the lib test target does
+# not compile with it. Scoped to `--test csp_header` to avoid that.
+#
+# The `running 0 tests` check is the point of the recipe. If the cfg gate on the
+# test file ever stops matching, cargo prints "running 0 tests" and exits 0 — a
+# green CI run that asserted nothing. Fail loudly on that instead.
+desktop-tauri-test-csp: _ensure-sidecar-stubs
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd desktop/src-tauri
+    output=$(cargo test --features custom-protocol --test csp_header -- --nocapture 2>&1)
+    echo "$output"
+    if grep -q "running 0 tests" <<<"$output"; then
+        echo "Error: csp_header ran 0 tests — the cfg gate no longer matches, so the shipped CSP is unverified." >&2
+        exit 1
+    fi
+
 # Verify compiled-flag behavior under both compile states (clean + internal).
 # Runs the observer_archive focused test twice with independently supplied
 # expected values; build.rs rerun-if-env-changed triggers recompilation.
@@ -243,7 +266,7 @@ desktop-release-build target="aarch64-apple-darwin":
     cd {{desktop_dir}} && pnpm tauri build --features mesh-llm --target {{target}}
 
 # Run desktop checks suitable for CI / pre-push
-desktop-ci: desktop-check desktop-test desktop-tauri-fmt-check desktop-build desktop-tauri-check desktop-tauri-test
+desktop-ci: desktop-check desktop-test desktop-tauri-fmt-check desktop-build desktop-tauri-check desktop-tauri-test desktop-tauri-test-csp
 
 # Seed deterministic channel data for desktop Playwright tests
 desktop-e2e-seed: _ensure-migrations
@@ -263,7 +286,7 @@ desktop-e2e-pre-push: _ensure-migrations
     cd {{desktop_dir}} && pnpm build:e2e && pnpm exec playwright test --only-changed=origin/main
 
 # Run all checks suitable for CI / pre-push (no infra needed)
-ci: check test-unit desktop-test desktop-build desktop-tauri-check desktop-tauri-test web-build mobile-test
+ci: check test-unit desktop-test desktop-build desktop-tauri-check desktop-tauri-test desktop-tauri-test-csp web-build mobile-test
 
 # ─── Test ─────────────────────────────────────────────────────────────────────
 
