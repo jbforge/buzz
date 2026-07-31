@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { installMockBridge } from "../helpers/bridge";
 import { waitForAnimations } from "../helpers/animations";
 
-const KIND_STREAM_MESSAGE_HTML = 40009;
+const KIND_STREAM_MESSAGE_HTML = 40010;
 
 const ARTIFACT_HTML = [
   "<style>body{font:14px system-ui;margin:12px}",
@@ -68,7 +68,7 @@ async function openGeneralWithArtifact(page: Page) {
   await emitHtmlArtifact(page);
 }
 
-test.describe("html embeds (kind:40009)", () => {
+test.describe("html embeds (kind:40010)", () => {
   test("01 — renders the artifact in a fully sandboxed frame", async ({
     page,
   }) => {

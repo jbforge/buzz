@@ -28,7 +28,7 @@
     {
       "id": "htmlEmbeds",
       "name": "HTML embeds",
-      "description": "Render kind:40009 HTML artifacts inline as sandboxed, script-free embeds",
+      "description": "Render kind:40010 HTML artifacts inline as sandboxed, script-free embeds",
       "platforms": ["desktop"]
     },
     {

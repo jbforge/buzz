@@ -966,7 +966,7 @@ fn validate_diff_event(event: &Event) -> Result<(), String> {
     Ok(())
 }
 
-/// Validate kind:40009 HTML artifact event envelope.
+/// Validate kind:40010 HTML artifact event envelope.
 ///
 /// The relay checks size and tag shape only. It deliberately does not parse or
 /// sanitize the HTML: rendering safety is the client's, enforced by the

@@ -35,7 +35,7 @@ export const KIND_GROUPS: ReadonlyArray<KindGroup> = [
       { kind: KIND_STREAM_MESSAGE_DIFF, label: "Message diffs (kind 40008)" },
       {
         kind: KIND_STREAM_MESSAGE_HTML,
-        label: "HTML embeds (kind 40009)",
+        label: "HTML embeds (kind 40010)",
       },
     ],
   },

@@ -56,7 +56,7 @@ pub struct DiffMeta {
     pub alt_text: Option<String>,
 }
 
-/// Metadata for HTML artifact messages (kind 40009).
+/// Metadata for HTML artifact messages (kind 40010).
 ///
 /// The event carries no sandboxing hints on purpose: the embedding policy is
 /// the renderer's to decide, so an author cannot widen it from the wire.

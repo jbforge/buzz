@@ -32,7 +32,7 @@ abstract final class EventKind {
   /// mobile renders unknown message kinds as plain content, and dumping a
   /// raw HTML document into the timeline is worse than not fetching it.
   /// Remove this note when mobile grows a real embed renderer.
-  static const streamMessageHtml = 40009;
+  static const streamMessageHtml = 40010;
   static const systemMessage = 40099;
   static const jobRequest = 43001;
   static const jobAccepted = 43002;

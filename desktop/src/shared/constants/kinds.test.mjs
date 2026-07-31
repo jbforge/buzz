@@ -35,7 +35,7 @@ test("isConversationalUnreadKind_streamMessageDiff_counts", () => {
 });
 
 test("isConversationalUnreadKind_streamMessageHtml_counts", () => {
-  // 40009 is a person or agent posting an artifact — as conversational as a
+  // 40010 is a person or agent posting an artifact — as conversational as a
   // diff, so it must count toward the unread pill.
   assert.equal(isConversationalUnreadKind(KIND_STREAM_MESSAGE_HTML), true);
 });

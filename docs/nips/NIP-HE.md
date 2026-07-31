@@ -10,7 +10,7 @@ HTML Embeds
 
 ## Abstract
 
-This NIP defines `kind:40009`, a channel message whose content is an HTML document rendered inline by the client as a **sandboxed, script-free embed**. It is for artifacts a chat message cannot express — a generated report, a table, a rendered chart — where linking out to a browser breaks the flow of the conversation.
+This NIP defines `kind:40010`, a channel message whose content is an HTML document rendered inline by the client as a **sandboxed, script-free embed**. It is for artifacts a chat message cannot express — a generated report, a table, a rendered chart — where linking out to a browser breaks the flow of the conversation.
 
 The event carries the document itself, not a pointer to one, so a channel's history stays self-contained and renders offline.
 
@@ -39,7 +39,7 @@ This document uses MUST, MUST NOT, SHOULD, MAY, and RECOMMENDED as defined in RF
 
 ```jsonc
 {
-  "kind": 40009,
+  "kind": 40010,
   "content": "<h1>Nightly build</h1><table>…</table>",
   "tags": [
     ["h", "<channel-uuid>"],          // REQUIRED — NIP-29 channel scope
@@ -69,7 +69,7 @@ A relay MUST validate the envelope:
 
 A relay MUST NOT parse, sanitize, or rewrite the artifact. Rendering safety is enforced by the renderer's sandbox (below), so relay-side filtering would be non-authoritative — it cannot protect a client that renders unsafely, and it cannot help a client that renders safely. It would also add an HTML parser to the ingest path, which is a denial-of-service surface reached by unauthenticated event submission.
 
-Relays SHOULD exclude `kind:40009` from full-text search indexing. Artifact markup is mostly tags and inline styles; indexing it dilutes results with matches on `div` and `background-color`.
+Relays SHOULD exclude `kind:40010` from full-text search indexing. Artifact markup is mostly tags and inline styles; indexing it dilutes results with matches on `div` and `background-color`.
 
 ## Rendering
 
@@ -97,9 +97,9 @@ A renderer MAY gate the whole feature behind a user preference. A renderer that 
 
 ## Client Behavior
 
-`kind:40009` is a **content kind**: it renders its own row in a timeline and counts toward unread state, like any other message. It is not an overlay on another event.
+`kind:40010` is a **content kind**: it renders its own row in a timeline and counts toward unread state, like any other message. It is not an overlay on another event.
 
-Clients that cannot render embeds SHOULD NOT request `kind:40009` in timeline filters unless they display the `alt` fallback. Fetching the kind and rendering `content` as message text dumps a raw HTML document into the conversation, which is worse than omitting it.
+Clients that cannot render embeds SHOULD NOT request `kind:40010` in timeline filters unless they display the `alt` fallback. Fetching the kind and rendering `content` as message text dumps a raw HTML document into the conversation, which is worse than omitting it.
 
 ## Security Considerations
 

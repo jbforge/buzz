@@ -375,7 +375,7 @@ pub fn build_diff_message(
     Ok(EventBuilder::new(Kind::Custom(40008), content).tags(tags))
 }
 
-/// Maximum content size for an HTML artifact message (kind 40009).
+/// Maximum content size for an HTML artifact message (kind 40010).
 pub const MAX_HTML_ARTIFACT_BYTES: usize = 64 * 1024;
 
 /// Smallest embed height a `height` tag may request, in CSS pixels.
@@ -384,7 +384,7 @@ pub const MIN_HTML_ARTIFACT_HEIGHT: u32 = 80;
 /// Largest embed height a `height` tag may request, in CSS pixels.
 pub const MAX_HTML_ARTIFACT_HEIGHT: u32 = 1200;
 
-/// Build an HTML artifact message (kind 40009).
+/// Build an HTML artifact message (kind 40010).
 ///
 /// `content` is the HTML source itself, kept inline so history stays
 /// self-contained. Renderers are expected to embed it in a sandboxed frame
@@ -420,7 +420,7 @@ pub fn build_html_artifact_message(
     if let Some(tr) = thread_ref {
         thread_tags(tr, &mut tags)?;
     }
-    Ok(EventBuilder::new(Kind::Custom(40009), content).tags(tags))
+    Ok(EventBuilder::new(Kind::Custom(40010), content).tags(tags))
 }
 
 /// Build an edit event targeting an existing message (kind 40003).
@@ -2133,7 +2133,7 @@ mod tests {
             height: Some(400),
         };
         let ev = sign(build_html_artifact_message(cid, "<h1>ok</h1>", &meta, None).unwrap());
-        assert_eq!(ev.kind.as_u16(), 40009);
+        assert_eq!(ev.kind.as_u16(), 40010);
         assert!(has_tag(&ev, "h", &cid.to_string()));
         assert!(has_tag(&ev, "title", "Build report"));
         assert!(has_tag(&ev, "alt", "Build report: 12 passed"));

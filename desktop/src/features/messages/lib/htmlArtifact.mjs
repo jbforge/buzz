@@ -1,5 +1,5 @@
 /**
- * Pure helpers for rendering kind:40009 HTML artifacts.
+ * Pure helpers for rendering kind:40010 HTML artifacts.
  *
  * Lives in `.mjs` (not `.ts`) so the test runner (`node --test`, no TS
  * loader) can import the same source the renderer uses. TypeScript callers

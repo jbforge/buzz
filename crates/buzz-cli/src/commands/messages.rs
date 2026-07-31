@@ -276,7 +276,7 @@ pub async fn cmd_get_messages(
     let limit = limit.unwrap_or(50).min(200);
 
     let mut filter = serde_json::json!({
-        "kinds": [9, 40002, 40008, 40009, 45001, 45003],
+        "kinds": [9, 40002, 40008, 40010, 45001, 45003],
         "#h": [channel_id],
         "limit": limit
     });
@@ -320,7 +320,7 @@ pub async fn cmd_get_thread(
     // 1. Replies referencing this event via e-tag (no kind restriction)
     // 2. The root event itself by ID
     let mut reply_filter = serde_json::json!({
-        "kinds": [9, 40002, 40003, 40008, 40009, 45003],
+        "kinds": [9, 40002, 40003, 40008, 40010, 45003],
         "#h": [channel_id],
         "#e": [event_id],
         "limit": limit
@@ -690,7 +690,7 @@ pub async fn cmd_send_html_message(client: &BuzzClient, p: SendHtmlParams) -> Re
     let html = read_file_or_stdin(&p.html)?;
     if html.len() > MAX_HTML_ARTIFACT_BYTES {
         return Err(CliError::Usage(format!(
-            "html exceeds the {MAX_HTML_ARTIFACT_BYTES}-byte limit for kind:40009 (got {} bytes)",
+            "html exceeds the {MAX_HTML_ARTIFACT_BYTES}-byte limit for kind:40010 (got {} bytes)",
             html.len()
         )));
     }
