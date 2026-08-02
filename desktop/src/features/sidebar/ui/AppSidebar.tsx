@@ -45,6 +45,7 @@ import {
 } from "@/features/sidebar/ui/CustomChannelSection";
 import { CreateChannelDialog } from "@/features/sidebar/ui/CreateChannelDialog";
 import { SidebarProfileCard } from "@/features/sidebar/ui/SidebarProfileCard";
+import { SidebarUsageCard } from "@/features/provider-usage/ui/SidebarUsageCard";
 import { SidebarRelayConnectionCard } from "@/features/sidebar/ui/SidebarRelayConnectionCard";
 import type { useSidebarRelayConnectionCard } from "@/features/sidebar/ui/useSidebarRelayConnectionCard";
 import {
@@ -868,6 +869,9 @@ export function AppSidebar({
           ) : null}
 
           <SidebarFooter>
+            <div className="group-data-[collapsible=icon]:hidden">
+              <SidebarUsageCard className="mb-2" />
+            </div>
             {relayConnectionCard.showSidebarRelayConnectionCard &&
             (isMobile ? openMobile : sidebarOpen) ? (
               <SidebarRelayConnectionCard

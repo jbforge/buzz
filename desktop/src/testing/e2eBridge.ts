@@ -9884,6 +9884,76 @@ export function maybeInstallE2eTauriMocks() {
         return meshNodeStatus(mockMeshState.nodeState, mockMeshState.nodeMode);
       case "mesh_serving_usage":
         return mockMeshState.servingUsage;
+      case "fetch_provider_usage": {
+        const nowSeconds = Math.floor(Date.now() / 1000);
+        return {
+          fetchedAt: nowSeconds,
+          providers: [
+            {
+              id: "claude",
+              name: "Claude",
+              status: "ok",
+              plan: null,
+              windows: [
+                {
+                  label: "5-hour",
+                  usedPercent: 16,
+                  resetsAt: nowSeconds + 2 * 3600,
+                },
+                {
+                  label: "Weekly",
+                  usedPercent: 2,
+                  resetsAt: nowSeconds + 6 * 86_400,
+                },
+              ],
+              spend: {
+                label: "Extra usage",
+                used: 34.47,
+                limit: 200,
+                currency: "USD",
+              },
+              detail: null,
+              dashboardUrl: "https://claude.ai/settings/usage",
+            },
+            {
+              id: "codex",
+              name: "Codex",
+              status: "ok",
+              plan: "Plus",
+              windows: [
+                {
+                  label: "Weekly",
+                  usedPercent: 60,
+                  resetsAt: nowSeconds + 5 * 86_400,
+                },
+              ],
+              spend: null,
+              detail: null,
+              dashboardUrl: "https://chatgpt.com/codex/settings/usage",
+            },
+            {
+              id: "openrouter",
+              name: "OpenRouter",
+              status: "not-configured",
+              plan: null,
+              windows: [],
+              spend: null,
+              detail: null,
+              dashboardUrl: "https://openrouter.ai/settings/credits",
+            },
+            {
+              id: "nous",
+              name: "Nous Portal",
+              status: "unsupported",
+              plan: null,
+              windows: [],
+              spend: null,
+              detail: "No usage API yet — opens the portal",
+              dashboardUrl: "https://portal.nousresearch.com/usage",
+            },
+          ],
+        };
+      }
       case "mesh_start_node": {
         const req = (
           payload as { request?: { mode?: "serve" | "client" } } | null
